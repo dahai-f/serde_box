@@ -9,3 +9,4 @@ edition = "2018"
 metatype = "0.2.0"
 serde = { version = "1.0.125", features = ["derive"] }
 erased-serde = "0.3.13"
+dashmap = "4.0.2"
