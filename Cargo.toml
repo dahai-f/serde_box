@@ -10,3 +10,13 @@ metatype = "0.2.0"
 serde = { version = "1.0.125", features = ["derive"] }
 erased-serde = "0.3.13"
 dashmap = "4.0.2"
+ctor = "0.1.20"
+serde_box_macro = { path = "./serde_box_macro" }
+
+[dev-dependencies]
+serde_json = "1.0.64"
+
+[workspace]
+members = [
+    "serde_box_macro"
+]
