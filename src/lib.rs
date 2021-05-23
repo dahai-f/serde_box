@@ -6,6 +6,7 @@ use std::ptr::NonNull;
 
 pub use ctor::ctor;
 use erased_serde::Error;
+pub use metatype;
 use metatype::type_coerce;
 use serde::de::DeserializeOwned;
 use serde::de::Unexpected::Str;
