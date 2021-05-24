@@ -7,7 +7,6 @@ use std::ptr::NonNull;
 pub use ctor::ctor;
 use erased_serde::Error;
 pub use metatype;
-use metatype::type_coerce;
 use serde::de::DeserializeOwned;
 use serde::de::Unexpected::Str;
 use serde::ser::SerializeTuple;
@@ -114,7 +113,8 @@ impl<'de, T: ?Sized + SerdeBoxDe + SerdeBoxRegistry> Deserialize<'de> for SerdeB
                 };
 
                 let meta = metatype::TraitObject { vtable };
-                let object: *const T = metatype::Type::dangling(type_coerce(meta)).as_ptr();
+                let object: *const T =
+                    metatype::Type::dangling(metatype::type_coerce(meta)).as_ptr();
                 let object: Box<T> = match seq.next_element_seed(ErasedDe(object))? {
                     Some(value) => value,
                     None => return Err(serde::de::Error::invalid_length(1, &self)),

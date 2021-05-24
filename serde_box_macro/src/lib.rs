@@ -28,7 +28,7 @@ pub fn serde_box(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     #[ctor]
                     fn #register_serde_box() {
                         let trait_ptr = std::ptr::null::<#struct_type>() as *const dyn #trait_path;
-                        let trait_obj: metatype::TraitObject = type_coerce(metatype::Type::meta(trait_ptr));
+                        let trait_obj: metatype::TraitObject = metatype::type_coerce(metatype::Type::meta(trait_ptr));
                         let vtable = trait_obj.vtable;
                         let registry = <(dyn #trait_path) as SerdeBoxRegistry>::get_registry();
                         registry.insert(std::any::type_name::<#struct_type>().to_owned(), vtable);
