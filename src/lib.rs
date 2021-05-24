@@ -1,5 +1,6 @@
 #![feature(arbitrary_self_types)]
 #![feature(once_cell)]
+#![feature(string_remove_matches)]
 
 use std::marker::PhantomData;
 use std::ptr::NonNull;
@@ -12,6 +13,7 @@ use serde::de::Unexpected::Str;
 use serde::ser::SerializeTuple;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+pub use serde_box_macro::register_serde_box;
 pub use serde_box_macro::serde_box;
 
 #[derive(Eq, PartialEq, Debug)]
@@ -55,6 +57,7 @@ impl<T: ?Sized + SerdeBoxSer> Serialize for SerdeBox<T> {
 }
 
 struct ErasedDe<T: ?Sized + SerdeBoxDe>(*const T);
+
 impl<'de, T: ?Sized + SerdeBoxDe> serde::de::DeserializeSeed<'de> for ErasedDe<T> {
     type Value = Box<T>;
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, <D as Deserializer<'de>>::Error>
@@ -74,6 +77,7 @@ impl<'de, T: ?Sized + SerdeBoxDe> serde::de::DeserializeSeed<'de> for ErasedDe<T
 }
 
 struct ErasedSer<'s, T: 's + ?Sized + SerdeBoxSer>(&'s T);
+
 impl<'s, T: ?Sized + SerdeBoxSer> serde::Serialize for ErasedSer<'s, T> {
     fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
     where
@@ -94,7 +98,16 @@ impl<'de, T: ?Sized + SerdeBoxDe + SerdeBoxRegistry> Deserialize<'de> for SerdeB
         impl<'de, T: ?Sized + SerdeBoxDe + SerdeBoxRegistry> serde::de::Visitor<'de> for Visitor<T> {
             type Value = SerdeBox<T>;
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                write!(formatter, "a MyTraitBox")
+                let mut trait_name = std::any::type_name::<T>().to_string();
+                trait_name.remove_matches("dyn ");
+                write!(
+                    formatter,
+                    "a SerdeBox. \
+                     Please use #[serde_box] \
+                     or register_serde_box!({}, $THE_INVALID_VALUE), if needed, \
+                     to register deserializing info.",
+                    trait_name,
+                )
             }
             #[inline]
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -148,99 +161,198 @@ pub trait SerdeBoxRegistry {
 
 #[cfg(test)]
 mod tests {
-    use std::any::Any;
-    use std::fmt::Debug;
+    mod not_generic {
+        use std::any::Any;
+        use std::fmt::Debug;
 
-    use serde::{Deserialize, Serialize};
+        use serde::{Deserialize, Serialize};
 
-    use crate::*;
+        use crate::*;
 
-    #[serde_box]
-    trait Message: SerdeBoxSer + SerdeBoxDe + Any + Debug {
-        fn as_any(&self) -> &dyn Any;
-        fn is_eq(&self, other: &dyn Message) -> bool;
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct Messages {
-        messages: Vec<SerdeBox<dyn Message>>,
-    }
-
-    impl PartialEq<dyn Message> for dyn Message {
-        fn eq(&self, other: &dyn Message) -> bool {
-            self.is_eq(other)
-        }
-    }
-
-    #[derive(Deserialize, Serialize, Eq, PartialEq, Debug)]
-    struct MyMessage1 {
-        val: i32,
-        val_b: u32,
-    }
-
-    #[serde_box]
-    impl Message for MyMessage1 {
-        fn as_any(&self) -> &dyn Any {
-            self
+        #[serde_box]
+        trait Message: SerdeBoxSer + SerdeBoxDe + Any + Debug {
+            fn as_any(&self) -> &dyn Any;
+            fn is_eq(&self, other: &dyn Message) -> bool;
         }
 
-        fn is_eq(&self, other: &dyn Message) -> bool {
-            if let Some(other) = other.as_any().downcast_ref::<Self>() {
-                self.eq(other)
-            } else {
-                false
+        #[derive(Serialize, Deserialize, PartialEq, Debug)]
+        struct Messages {
+            messages: Vec<SerdeBox<dyn Message>>,
+        }
+
+        impl PartialEq<dyn Message> for dyn Message {
+            fn eq(&self, other: &dyn Message) -> bool {
+                self.is_eq(other)
             }
         }
-    }
 
-    #[derive(Deserialize, Serialize, Eq, PartialEq, Debug)]
-    struct MyMessage2 {
-        val2: String,
-        val2_b: i128,
-    }
-
-    #[serde_box]
-    impl Message for MyMessage2 {
-        fn as_any(&self) -> &dyn Any {
-            self
+        #[derive(Deserialize, Serialize, Eq, PartialEq, Debug)]
+        struct MyMessage1 {
+            val: i32,
+            val_b: u32,
         }
 
-        fn is_eq(&self, other: &dyn Message) -> bool {
-            if let Some(other) = other.as_any().downcast_ref::<Self>() {
-                self.eq(other)
-            } else {
-                false
+        #[serde_box]
+        impl Message for MyMessage1 {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+
+            fn is_eq(&self, other: &dyn Message) -> bool {
+                if let Some(other) = other.as_any().downcast_ref::<Self>() {
+                    self.eq(other)
+                } else {
+                    false
+                }
             }
         }
-    }
 
-    #[test]
-    fn ser() {
-        let messages = get_messages();
-        let ser = serde_json::to_string(&messages).unwrap();
-        assert_eq!(get_messages_json(), &ser);
-    }
+        #[derive(Deserialize, Serialize, Eq, PartialEq, Debug)]
+        struct MyMessage2 {
+            val2: String,
+            val2_b: i128,
+        }
 
-    #[test]
-    fn de() {
-        let messages_json = get_messages_json();
-        let messages: Messages = serde_json::from_str(messages_json).unwrap();
-        assert_eq!(messages, get_messages());
-    }
+        #[serde_box]
+        impl Message for MyMessage2 {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
 
-    fn get_messages() -> Messages {
-        Messages {
-            messages: vec![
-                SerdeBox(Box::new(MyMessage1 { val: 1, val_b: 2 })),
-                SerdeBox(Box::new(MyMessage2 {
-                    val2: "3".to_string(),
-                    val2_b: 4,
-                })),
-            ],
+            fn is_eq(&self, other: &dyn Message) -> bool {
+                if let Some(other) = other.as_any().downcast_ref::<Self>() {
+                    self.eq(other)
+                } else {
+                    false
+                }
+            }
+        }
+
+        #[test]
+        fn ser() {
+            let messages = get_messages();
+            let ser = serde_json::to_string(&messages).unwrap();
+            assert_eq!(get_messages_json(), &ser);
+        }
+
+        #[test]
+        fn de() {
+            let messages_json = get_messages_json();
+            let messages: Messages = serde_json::from_str(messages_json).unwrap();
+            assert_eq!(messages, get_messages());
+        }
+
+        fn get_messages() -> Messages {
+            Messages {
+                messages: vec![
+                    SerdeBox(Box::new(MyMessage1 { val: 1, val_b: 2 })),
+                    SerdeBox(Box::new(MyMessage2 {
+                        val2: "3".to_string(),
+                        val2_b: 4,
+                    })),
+                ],
+            }
+        }
+
+        fn get_messages_json() -> &'static str {
+            r##"{"messages":[["serde_box::tests::MyMessage1",{"val":1,"val_b":2}],["serde_box::tests::MyMessage2",{"val2":"3","val2_b":4}]]}"##
         }
     }
 
-    fn get_messages_json() -> &'static str {
-        r##"{"messages":[["serde_box::tests::MyMessage1",{"val":1,"val_b":2}],["serde_box::tests::MyMessage2",{"val2":"3","val2_b":4}]]}"##
+    mod generic {
+        use std::any::Any;
+        use std::fmt::Debug;
+
+        use crate::*;
+
+        #[serde_box]
+        trait Message: SerdeBoxSer + SerdeBoxDe + Any + Debug {
+            fn as_any(&self) -> &dyn Any;
+            fn is_eq(&self, other: &dyn Message) -> bool;
+        }
+
+        impl PartialEq for dyn Message {
+            fn eq(&self, other: &Self) -> bool {
+                self.is_eq(other)
+            }
+        }
+
+        impl Eq for dyn Message {}
+
+        #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+        struct MyMessage1<C> {
+            v: C,
+        }
+
+        #[serde_box]
+        impl<C: 'static + Serialize + DeserializeOwned + Eq + Debug> Message for MyMessage1<C> {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+
+            fn is_eq(&self, other: &dyn Message) -> bool {
+                other
+                    .as_any()
+                    .downcast_ref::<Self>()
+                    .map(|other| self.eq(other))
+                    .unwrap_or(false)
+            }
+        }
+
+        #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+        struct MyMessage2 {
+            v: i32,
+        }
+
+        #[serde_box]
+        impl Message for MyMessage2 {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+
+            fn is_eq(&self, other: &dyn Message) -> bool {
+                other
+                    .as_any()
+                    .downcast_ref::<Self>()
+                    .map(|other| self.eq(other))
+                    .unwrap_or(false)
+            }
+        }
+
+        #[derive(Deserialize, Serialize, Eq, PartialEq, Debug)]
+        struct Messages {
+            messages: Vec<SerdeBox<dyn Message>>,
+        }
+
+        #[test]
+        fn ser() {
+            let messages = get_messages();
+            let ser = serde_json::to_string(&messages).unwrap();
+            assert_eq!(get_messages_json(), &ser);
+        }
+
+        #[test]
+        fn de() {
+            let messages_json = get_messages_json();
+            let messages: Messages = serde_json::from_str(messages_json).unwrap();
+            assert_eq!(messages, get_messages());
+        }
+
+        register_serde_box!(Message, MyMessage1<i32>);
+        register_serde_box!(Message, MyMessage1<String>);
+
+        fn get_messages() -> Messages {
+            Messages {
+                messages: vec![
+                    SerdeBox(Box::new(MyMessage1::<i32> { v: 1 })),
+                    SerdeBox(Box::new(MyMessage2 { v: 2 })),
+                    SerdeBox(Box::new(MyMessage1::<String> { v: "3".to_owned() })),
+                ],
+            }
+        }
+
+        fn get_messages_json() -> &'static str {
+            r##"{"messages":[["serde_box::tests::generic::MyMessage1<i32>",{"v":1}],["serde_box::tests::generic::MyMessage2",{"v":2}],["serde_box::tests::generic::MyMessage1<alloc::string::String>",{"v":"3"}]]}"##
+        }
     }
 }
