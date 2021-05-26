@@ -119,7 +119,7 @@ impl<'de, T: ?Sized + SerdeBoxDe + SerdeBoxRegistry> Deserialize<'de> for SerdeB
                     formatter,
                     "a SerdeBox. \
                      Please use #[serde_box] \
-                     or register_serde_box!({}, $THE_INVALID_VALUE), if needed, \
+                     and register_serde_box!({}, $THE_INVALID_VALUE), if needed, \
                      to register deserializing info.",
                     trait_name,
                 )
