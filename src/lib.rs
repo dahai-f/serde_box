@@ -3,6 +3,7 @@
 #![feature(string_remove_matches)]
 
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
 pub use ctor::ctor;
@@ -18,6 +19,20 @@ pub use serde_box_macro::serde_box;
 
 #[derive(Eq, PartialEq, Debug)]
 pub struct SerdeBox<T: ?Sized>(Box<T>);
+
+impl<T: ?Sized> Deref for SerdeBox<T> {
+    type Target = Box<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T: ?Sized> DerefMut for SerdeBox<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 pub trait SerdeBoxSer: erased_serde::Serialize {
     fn type_name(&self) -> &'static str {
