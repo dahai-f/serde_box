@@ -86,9 +86,7 @@ pub fn serde_box(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 impl SerdeBoxRegistry for dyn #trait_ident {
                     fn get_registry() -> &'static Registry {
                         use std::lazy::SyncLazy;
-                        static REGISTRY: SyncLazy<Registry> = SyncLazy::new(|| Registry {
-                            type_name_to_vtable: Default::default(),
-                        });
+                        static REGISTRY: SyncLazy<Registry> = SyncLazy::new(Registry::default);
                         &REGISTRY
                     }
                 }

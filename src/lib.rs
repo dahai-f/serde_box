@@ -154,6 +154,7 @@ impl<'de, T: ?Sized + SerdeBoxDe + SerdeBoxRegistry> Deserialize<'de> for SerdeB
     }
 }
 
+#[derive(Default)]
 pub struct Registry {
     type_name_to_vtable: dashmap::DashMap<String, &'static ()>,
 }
