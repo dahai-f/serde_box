@@ -18,7 +18,7 @@ pub use serde_box_macro::register_serde_box;
 pub use serde_box_macro::serde_box;
 
 #[derive(Eq, PartialEq, Debug)]
-pub struct SerdeBox<T: ?Sized>(Box<T>);
+pub struct SerdeBox<T: ?Sized>(pub Box<T>);
 
 impl<T: ?Sized> Deref for SerdeBox<T> {
     type Target = Box<T>;
